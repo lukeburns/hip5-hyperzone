@@ -1,0 +1,22 @@
+{
+  "name": "hip5-hyper",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no tests yet\" && exit 1"
+  },
+  "author": "Luke Burns",
+  "license": "ISC",
+  "dependencies": {
+    "@hyperswarm/replicator": "github:lukeburns/replicator",
+    "blake3": "^2.1.7",
+    "bs32": "^0.1.6",
+    "hip5": "^0.1.2",
+    "hyperzone": "github:lukeburns/hyperzone",
+    "nunjucks": "^3.2.3"
+  },
+  "peerDependencies": {
+    "bns": "^0.15.0"
+  }
+}

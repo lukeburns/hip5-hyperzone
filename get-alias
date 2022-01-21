@@ -1,0 +1,8 @@
+#! /usr/bin/env node
+
+const base32 = require('bs32')
+const blake3 = require('blake3')
+
+const arg = process.argv[2].slice('.')[0]
+
+arg && process.stdout.write(base32.encode(blake3.hash(arg)))

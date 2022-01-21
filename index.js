@@ -1,46 +1,89 @@
-const PROTOCOL = '_hyper'
 const Hip5 = require('hip5')
 const Hyperzone = require('hyperzone')
 const Replicator = require('@hyperswarm/replicator')
 const base32 = require('bs32')
-const { Zone, wire: { types, typesByVal, Question } } = require('bns')
+const { util, wire: { types, typesByVal, Question } } = require('bns')
 const blake3 = require('blake3')
 const { Struct } = require('bufio')
-const { Environment } = require('nunjucks')
-
-const env = new Environment()
-env.addFilter('hash', str => base32.encode(blake3.hash(str)))
 
 class Plugin extends Hip5 {
-  static id = 'hip5-hyper'
+  static id = 'hyperzone'
 
   constructor (node) {
-    super(PROTOCOL, node)
+    super(null, node)
     this.pool = node.pool
     this.config = node.config
 
     this.replicator = new Replicator()
     this.hyperzones = new Map()
 
-    this.ns.middle = this._hip5('_hyper', this.hyper, this._hip5(['_dynamic', '_hyper'], this.dynamic))
-
-    this.logger.info('init hip5-hyper')
+    // middleware pipeline
+    this.ns.middle = this._hip5('_aliasing', this.aliasing)
+    this.ns.middle = this._hip5('_hyperzone', this.hyper, this.ns.middle)
   }
 
+  // aliasing
+  async aliasing (data, name, type, req, tld, res) {
+    // if we're here, it means the TLD set NS record to _aliasing
+    const dataLabels = data.split('.')
+    const hip5data = dataLabels[0]
+    if (name === tld) {
+      const soa = await this.sendSOA()
+
+      // want to serve TLD records without overriding SLD records
+      if (dataLabels[dataLabels.length-1] === '_hyperzone' && hip5data.length === 52) {
+        const result = await this.hyper(hip5data, name, type)
+        if (result && result.answer) {
+          soa.answer = result.answer.filter(answer => {
+            return answer.type !== types.NS && answer.type !== types.SOA
+          })
+        }
+      }
+      this.logger.debug('ALIASING', soa)
+      return soa
+    }
+
+    // compute alias
+    const nameLabels = name.split('.')
+    const sldLabel = nameLabels[nameLabels.length-3]
+    const alias = util.fqdn(base32.encode(blake3.hash(sldLabel+hip5data)))
+
+    // query alias
+    try {
+      const question = [new Question(alias, type), new Question(name, type)]
+      const response = await this.ns.response({ question })
+      response.question = question
+      response.answer = response.answer.map(answer => {
+        answer.name = name
+        return answer
+      })
+      response.authority = response.authority.map(answer => {
+        answer.name = name
+        return answer
+      })
+    // this.ns.cache.set(name, type, response)
+      return response
+    } catch (err) {
+      this.logger.debug('ALIASING ERROR', err)
+      return null
+    }
+  }
+
+  // hyper
   async hyper (key, name, type) {
-     const zone = this.hyperzones.get(key)
-     if (zone) {
-       return await zone.resolve(name, type)
+     let hyperzone = this.hyperzones.get(key)
+     if (hyperzone) {
+         return await hyperzone.resolve(name, type)
      } else {
-       this.add(key, name)
-       return null
+       hyperzone = this.add(key, name)
+       return await hyperzone.resolve(name, type)
      }
    }
 
-   async add (key, name) {
-     const zone = new Hyperzone(name, `${this.config.prefix}/hyperzones/${name}`, key, { Zone })
+   add (key, name) {
+     const zone = new Hyperzone(name, `${this.config.prefix}/hyperzones/${name}`, key)
      this.hyperzones.set(key, zone)
-     await this.replicator.add(zone.db, { client: true, server: false })
+     this.replicator.add(zone.db, { client: true, server: false })
      return zone
    }
 
@@ -56,40 +99,7 @@ class Plugin extends Hip5 {
      return await this.replicator.destroy()
    }
 
-  // Dynamic template resolver
-  async dynamic (protocol, data, name, type, req, tld, res) {
-    // if we're here, it means the TLD set NS record to _dynamic
-    const labels = name.split('.')
-    const sld = labels[labels.length-3]
-
-    const zone = new Zone()
-    zone.setOrigin(tld)
-
-    // TODO: how to serve tld records (should we return TXT records, proof of template?)
-    if (name === tld) {
-      return res
-    }
-
-    // fetch and compile TXT records to zone file
-    const resource = await this.resource(tld)
-    const records = resource.toTXT()
-    records.forEach(answer => {
-      const record = env.renderString(answer.data.txt.join(' ').replaceAll('\\"', ''), { name: sld, key: data, data, tld })
-      zone.fromString(record)
-    })
-
-    // resolve and set cache
-    try {
-      const response = await zone.resolve(name, type)
-    // this.ns.cache.set(name, type, response)
-      return response
-    } catch (err) {
-      this.logger.error(err)
-      return null
-    }
-  }
-
-  static init = node => new Plugin(node)
+   static init = node => new Plugin(node)
 }
 
 exports.id = Plugin.id

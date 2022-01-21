@@ -1,6 +1,6 @@
 {
-  "name": "hip5-hyper",
-  "version": "0.1.0",
+  "name": "hip5-hyperzone",
+  "version": "0.2.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -13,7 +13,7 @@
     "blake3": "^2.1.7",
     "bs32": "^0.1.6",
     "hip5": "^0.1.2",
-    "hyperzone": "github:lukeburns/hyperzone",
+    "hyperzone": "^0.1.2",
     "nunjucks": "^3.2.3"
   },
   "peerDependencies": {

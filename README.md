@@ -40,9 +40,9 @@ The main requirements for decentralized zone storage are: a public-key addressab
 
 The [hypercore protocol](https://hypercore-protocol.org/) is one candidate distributed data structure with satisfactory properties, on top of which zone storage can be written. [Hyperzone](https://github.com/lukeburns/hyperzone) is an experimental implementation of such a data structure that can be replicated with peers discovered via a DHT using the [Replicator](https://github.com/lukeburns/replicator) library. Other distributed zone protocols might choose to use a different data structure and protocol.
 
-If a Handshake TLD <_tld_> sets a HIP-5 NS record "_<public-key>_._hyperzone", then any HIP-5 extension implementing the `hyperzone` protocol must upon receiving queries:
+If a Handshake TLD _{tld}_ sets a HIP-5 NS record "_{public-key}_._hyperzone", then any HIP-5 extension implementing the `hyperzone` protocol must upon receiving queries:
 
-1. Locate a peer in possession of a replica of the hyperzone addressed by the public key _<public-key>_.
+1. Locate a peer in possession of a replica of the hyperzone addressed by the public key _{public-key}_.
 2. Verify and resolve records from that hyperzone.
 3. Listen for peers with updates to the hyperzone.
 4. Cache and replicate the hyperzone with peers.
@@ -51,11 +51,11 @@ We will leave the particular discovery mechanisms, caching strategies, and repli
 
 ### TLD Aliases
 
-If a Handshake TLD _<tld>_ sets a HIP-5 NS record "_<hip5data>_._aliasing", then any HIP-5 extension implementing the `aliasing` protocol must:
+If a Handshake TLD _{tld}_ sets a HIP-5 NS record "_{hip5data}_._aliasing", then any HIP-5 extension implementing the `aliasing` protocol must:
 
-1. For any SLD _<label>.<tld>_, compute the _<alias>_: the [base32](https://github.com/bcoin-org/bs32) encoding of the [blake3](https://github.com/connor4312/blake3) hash of _<label>_ concatenated (as strings) with the _first_ label of _<hip5data>_.
-2. Forward the original DNS query for _<label>.<tld>_ to _<alias>_ after substituting _<label>.<tld>_ for _<alias>_, then return the response after substituting _<alias>_ for _<label>.<tld>_.
+1. For any SLD _{label}.{tld}_, compute the _{alias}_: the [base32](https://github.com/bcoin-org/bs32) encoding of the [blake3](https://github.com/connor4312/blake3) hash of _{label}_ concatenated (as strings) with the _first_ label of _{hip5data}_.
+2. Forward the original DNS query for _{label}.{tld}_ to _{alias}_ after substituting _{label}.{tld}_ for _{alias}_, then return the response after substituting _{alias}_ for _{label}.{tld}_.
 
 A TLD owner wishing to open their TLD for SLD registration should set a single HIP-5 NS record as above with a unique public key as hip5 data, then [set their TLD to renew-only](https://github.com/handshake-org/hsd/pull/567). They can use the public key to prove that they originally owned the TLD.
 
-A HIP-5 extension supporting the `aliasing` protocol might also resolve top-level records for the TLD using the public key as a decentralized zone address, as we do in the experimental implementation discussed below. If it does, it must specify the distributed zone protocol that it is using as a sublabel, such as: `<public-key>._hyper._aliasing`. For this reason, only the first label of _<hip5data>_ should be used to compute _<alias>_.
+A HIP-5 extension supporting the `aliasing` protocol might also resolve top-level records for the TLD using the public key as a decentralized zone address, as we do in the experimental implementation discussed below. If it does, it must specify the distributed zone protocol that it is using as a sublabel, such as: `{public-key}._hyper._aliasing`. For this reason, only the first label of _{hip5data}_ should be used to compute _{alias}_.

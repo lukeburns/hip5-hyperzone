@@ -8,6 +8,7 @@
   },
   "author": "Luke Burns",
   "license": "ISC",
+  "repository": "github:lukeburns/hip5-hyperzone",
   "dependencies": {
     "@hyperswarm/replicator": "github:lukeburns/replicator",
     "blake3": "^2.1.7",

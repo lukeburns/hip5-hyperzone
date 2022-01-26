@@ -16,10 +16,8 @@ To run a node with the extension, execute:
 To test the extension, run:
 
 ```
-➜ node_modules/hip5-hyperzone/test.sh
+➜ NODE_PATH=node_modules ./node_modules/hip5-hyperzone/test.sh
 ```
-
-NOTE: this test currently depends on availability of two hyperzones. I am currently replicating these from a remote server, but it is possible that my server will go down. I will update this later so that the test generates one-off, in-memory hyperzones on the fly.
 
 ## Introduction
 

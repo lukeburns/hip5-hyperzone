@@ -1,0 +1,26 @@
+#! /usr/bin/env node
+
+const fs = require('fs')
+const Hyperzone = require('hyperzone')
+const Replicator = require('@hyperswarm/replicator')
+
+// ./replicate-zones tld sld.tld ...
+const names = process.argv.slice(2).map(name => name[name.length - 1] === '.' ? name : name + '.')
+
+main ()
+async function main () {
+  if (names.length === 0) return
+
+  const replicator = new Replicator()
+  await Promise.all(names.map(async name => {
+    // replicate zones
+    try {
+      fs.statSync(`./data/${name}`)
+      const zone = new Hyperzone(names, `./data/${name}`)
+      await replicator.add(zone.db, { server: true, client: false })
+      console.log(`Replicating ${name}`)
+    } catch (error) {
+      console.log(`Zone ${name} does not exist`)
+    }
+  }))
+}

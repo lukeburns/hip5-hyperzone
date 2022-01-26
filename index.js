@@ -18,12 +18,18 @@ class Plugin extends Hip5 {
     this.hyperzones = new Map()
 
     // middleware pipeline
-    this.ns.middle = this._hip5('_aliasing', this.aliasing)
-    this.ns.middle = this._hip5('_hyperzone', this.hyper, this.ns.middle)
+    this.ns.middle = middle.bind(this)
+    async function middle (...args) {
+      this.logger.debug('middle init')
+      const res = await this._hip5('_hyperzone', this.hyper, this._hip5('_aliasing', this.aliasing))(...args)
+      this.logger.debug('middle response', res)
+      return res
+    }
   }
 
   // aliasing
   async aliasing (data, name, type, req, tld, res) {
+    this.logger.debug('aliasing init', name)
     // if we're here, it means the TLD set NS record to _aliasing
     const dataLabels = data.split('.')
     const hip5data = dataLabels[0]
@@ -46,37 +52,54 @@ class Plugin extends Hip5 {
     // compute alias
     const nameLabels = name.split('.')
     const sldLabel = nameLabels[nameLabels.length-3]
+    this.logger.debug('ALIAS hashing', sldLabel+hip5data)
     const alias = util.fqdn(base32.encode(blake3.hash(sldLabel+hip5data)))
+    this.logger.debug('ALIAS result', alias)
 
     // query alias
+    const question = [new Question(alias, type), new Question(name, type)]
+    let response
     try {
-      const question = [new Question(alias, type), new Question(name, type)]
-      const response = await this.ns.response({ question })
-      response.question = question
-      response.answer = response.answer.map(answer => {
-        answer.name = name
-        return answer
-      })
-      response.authority = response.authority.map(answer => {
-        answer.name = name
-        return answer
-      })
-    // this.ns.cache.set(name, type, response)
-      return response
+      response = await this.ns.response({ question })
     } catch (err) {
       this.logger.debug('ALIASING ERROR', err)
       return null
     }
+    response.question = question
+    response.answer = response.answer.map(answer => {
+      answer.name = name
+      return answer
+    })
+    response.authority = response.authority.map(answer => {
+      answer.name = name
+      return answer
+    })
+  // this.ns.cache.set(name, type, response)
+    this.logger.debug('ALIASING response', response)
+    return response
   }
 
   // hyper
-  async hyper (key, name, type) {
+  async hyper (key, name, type, timeout=1500) {
+     this.logger.debug('hyper init', name)
      let hyperzone = this.hyperzones.get(key)
-     if (hyperzone) {
-         return await hyperzone.resolve(name, type)
-     } else {
+     if (!hyperzone) {
        hyperzone = this.add(key, name)
-       return await hyperzone.resolve(name, type)
+       this.logger.debug('hyper NOEXIST')
+       return null
+     }
+
+     let result = null
+     try {
+       return await new Promise((resolve, reject) => {
+         this.logger.debug('hyper resolving...')
+         hyperzone.resolve(name, type).then(resolve).catch(error => this.logger.debug(error))
+         sleep(timeout).then(reject)
+       })
+     } catch (err) {
+       // timeout
+       this.logger.debug('hyper timeout')
+       return null
      }
    }
 
@@ -104,3 +127,7 @@ class Plugin extends Hip5 {
 
 exports.id = Plugin.id
 exports.init = Plugin.init
+
+function sleep (ms) {
+  return new Promise((resolve => setTimeout(() => resolve(), ms)))
+}

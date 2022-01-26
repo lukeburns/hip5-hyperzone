@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+pgrep -f replicate-zones | xargs kill -9 # kill old replicator process if still running
+
+DIR=$(dirname $0)
+
 set -e
 export NODE_PRESERVE_SYMLINKS=1
 export HSD_NETWORK=regtest
@@ -13,16 +17,27 @@ sleep 2
 
 # TLD
 TLD="handshake"
-TLD_KEY="fmneqlr3nsxu7ipzxj3r5kvlejt5kqddu6zzzjmazuzomfoyhfyq" # hyperzone with TLD records
+TLD_KEY=$(node $DIR/create-dummy-zones $TLD) # hyperzone with TLD records
 TLD_NS="$TLD_KEY._hyperzone._aliasing."
+
+echo TLD=$TLD
+echo TLD_KEY=$TLD_KEY
 
 # SLD
 NAME="bob"
 SLD="$NAME.$TLD"
-SLD_KEY="wgdku42pbm6wz7vjg5klpm5wkyh47pmdschw56s5iabntz2cm7tq" # hyperzone with SLD records
-SLD_DIGEST="f42259a5a747b362c66f8093372a8c735a99563a9451c032263a3d927dcbb7ed" # digest for bob.handshake and public key $SLD_KEY
-SLD_ALIAS=$(./get-alias "$NAME$TLD_KEY") # bob.handshake -> 337momokst44stq3zcc4sw4tox5behzcnd5ahjgqwevefi4mjclq
+SLD_KEY=$(node $DIR/create-dummy-zones $SLD) # hyperzone with SLD records
+SLD_ALIAS=$(node $DIR/get-alias "$NAME$TLD_KEY") # bob.handshake alias
 SLD_NS="$SLD_KEY._hyperzone."
+
+echo SLD=$SLD
+echo SLD_KEY=$SLD_KEY
+echo SLD alias from blake3 hash of $NAME$TLD_KEY:
+echo SLD_ALIAS=$SLD_ALIAS
+
+node $DIR/replicate-zones $TLD $SLD & # start replicator process
+PID=$!
+echo "Launched replicator process (pid=$PID) — if the test fails, you may need to kill this manually."
 
 echo "Generating a new address and registering TLD: $TLD"
 hsd-rpc generatetoaddress 100 `hsw-rpc getnewaddress` > /dev/null
@@ -48,15 +63,13 @@ hsw-rpc sendreveal > /dev/null
 hsd-rpc generatetoaddress 10 `hsw-rpc getnewaddress` > /dev/null
 hsw-rpc sendupdate $SLD_ALIAS "{\"records\":[{\"type\":\"NS\", \"ns\":\"$SLD_NS\"}]}" > /dev/null
 hsd-rpc generatetoaddress 10 `hsw-rpc getnewaddress` > /dev/null
-# hsw-rpc sendupdate $SLD_ALIAS "{\"records\":[{\"type\":\"NS\", \"ns\":\"$SLD_NS\"}, {\"type\":\"DS\", \"keyTag\": 1, \"algorithm\": 15, \"digestType\": 2, \"digest\": \"$SLD_DIGEST\"}]}" > /dev/null # TODO: sign zone records
 
 echo "Added NS record to $SLD_ALIAS."
 hsw-rpc getnameresource $SLD_ALIAS
 
-# dig @127.0.0.1 -p 25350 $TLD > /dev/null # fetch SLD hyperzone
-dig @127.0.0.1 -p 25350 $SLD # fetch SLD hyperzone
+dig @127.0.0.1 -p 25350 $SLD > /dev/null # trigger resolver to fetch TLD and SLD hyperzones
 
-sleep 2 # wait for hyperzone to replicate
+sleep 4 # wait for hyperzones to replicate
 
 echo ""
 echo "BOTH $TLD AND $SLD SHOULD RETURN A RECORDS 66.42.108.201:"
@@ -67,3 +80,4 @@ dig @127.0.0.1 -p 25350 $SLD # serve hyperzone
 sleep 2
 
 hsd-rpc stop
+kill -9 $PID # kill replicator process

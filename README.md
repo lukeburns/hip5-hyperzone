@@ -1,3 +1,9 @@
+# See [HIPR-HYPERZONE](https://github.com/lukeburns/hipr-hyperzone) for a standalone HIP-5 resolver
+
+I'll probably retire this repo soon.
+
+---
+
 # Hyperzone HIP-5 Protocol for Trustless SLDs and Decentralized Zone Storage
 
 ## Usage
